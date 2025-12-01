@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, useWindowDimensions, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, FlatList, useWindowDimensions, TouchableOpacity, StatusBar, Animated } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -7,45 +7,38 @@ import { Image } from 'expo-image';
 import { useFonts as useOrbitron, Orbitron_500Medium } from '@expo-google-fonts/orbitron';
 import { useFonts as useMontserrat, Montserrat_600SemiBold } from '@expo-google-fonts/montserrat';
 import { useFonts as useInter, Inter_400Regular } from '@expo-google-fonts/inter';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BG = '#000000';
+const BG = '#0c0b0c';
 const TEXT = '#ffffff';
 const TEXT_SECONDARY = '#d0d0d0';
-const ACCENT = '#00ffd1'; // cian neón
-const CTA = '#00e0b8'; // verde-agua intenso
+const ACCENT = '#00ffff'; // cian neón
+const CTA = '#00ffff'; // verde-agua intenso
 
 const slides = [
   {
     key: 's1',
     header: 'BIENVENIDO A SAFEZONE',
-    subtitle: 'Tu seguridad es nuestra prioridad',
+    subtitle: 'Tu seguridad personal, siempre contigo',
     icon: 'shield-checkmark-outline' as const,
-    bulletTitle: '1. SOS Inteligente:',
-    bulletBody: 'Activa alertas rápidas a tus contactos, graba audio y avisa a la policía en caso de emergencia.',
+    bulletTitle: '1. SOS inteligente & contactos de emergencia',
+    bulletBody: 'Activa el SOS para compartir tu ubicación, grabar audio y avisar a tus contactos de confianza en segundos.',
   },
   {
     key: 's2',
     header: 'SAFEZONE',
-    subtitle: 'Tu seguridad es nuestra prioridad',
+    subtitle: 'Muévete con rutas y mapa seguros',
     icon: 'help-buoy-outline' as const,
-    bulletTitle: '2. Mapa de Contactos & Rutas Seguras:',
-    bulletBody: 'Localiza a tus amigos en tiempo real, y ellos a ti.',
+    bulletTitle: '2. Mapa de contactos & rutas seguras',
+    bulletBody: 'Ve tu posición, la de tus contactos y la mejor ruta para llegar a lugares clave en el mapa.',
   },
   {
     key: 's3',
     header: 'SAFEZONE',
-    subtitle: 'Tu seguridad es nuestra prioridad',
+    subtitle: 'Construye una comunidad más segura',
     icon: 'map-outline' as const,
-    bulletTitle: '3. Comunidad & Reviews de Lugares:',
-    bulletBody: 'Evalúa lugares, reporta incidentes y comparte evaluaciones de seguridad.',
-  },
-  {
-    key: 's4',
-    header: 'SAFEZONE',
-    subtitle: 'Tu seguridad es nuestra prioridad',
-    icon: 'car-outline' as const,
-    bulletTitle: '4. Taxis Verificados:',
-    bulletBody: 'Viajes seguros con conductores verificados y seguimiento en vivo.',
+    bulletTitle: '3. Comunidad & reviews de lugares',
+    bulletBody: 'Descubre discotecas y puntos de encuentro con reviews de seguridad de la comunidad SafeZone.',
   },
 ];
 
@@ -58,6 +51,7 @@ export default function OnboardingScreen() {
 
   const [index, setIndex] = useState(0);
   const ref = useRef<FlatList>(null);
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   const isLast = index === slides.length - 1;
 
@@ -65,29 +59,36 @@ export default function OnboardingScreen() {
     if (!isLast) {
       ref.current?.scrollToIndex({ index: index + 1, animated: true });
     } else {
+      AsyncStorage.setItem('sz_onboarding_completed', '1').catch(() => {});
       router.replace('/login');
     }
   };
 
   const onSkip = () => {
+    AsyncStorage.setItem('sz_onboarding_completed', '1').catch(() => {});
     router.replace('/login');
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: BG, paddingTop: Math.max(32, insets.top + 12) }]}> 
+    <SafeAreaView style={[styles.container, { backgroundColor: BG, paddingTop: insets.top }]}> 
       <StatusBar barStyle="light-content" />
 
       <TouchableOpacity style={[styles.skip, { top: insets.top + 12 }]} onPress={onSkip}>
         <Text style={[styles.skipText, { fontFamily: interLoaded ? 'Inter_400Regular' : undefined }]}>SALTAR</Text>
       </TouchableOpacity>
 
-      <FlatList
+      <Animated.FlatList
         ref={ref}
         data={slides}
         keyExtractor={(item) => item.key}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: false },
+        )}
+        scrollEventThrottle={16}
         onMomentumScrollEnd={(e) => {
           const nextIndex = Math.round(e.nativeEvent.contentOffset.x / width);
           setIndex(nextIndex);
@@ -95,7 +96,7 @@ export default function OnboardingScreen() {
         renderItem={({ item }) => (
           <View style={[styles.slide, { width, paddingVertical: 32 }]}> 
             <View style={styles.top}>
-              <Image source={require('../../assets/images/logo.png')} style={styles.brand} contentFit="contain" />
+              <Image source={require('../../assets/images/logo1.png')} style={styles.brand} contentFit="contain" />
               <Text style={[styles.header, { fontFamily: orbitronLoaded ? 'Orbitron_500Medium' : undefined }]}>{item.header}</Text>
               <Text style={[styles.subtitle, { fontFamily: interLoaded ? 'Inter_400Regular' : undefined }]}>{item.subtitle}</Text>
             </View>
@@ -116,9 +117,34 @@ export default function OnboardingScreen() {
 
       <View style={[styles.footer, { paddingBottom: Math.max(40, insets.bottom + 24) }]}>
         <View style={styles.dots}>
-          {slides.map((_, i) => (
-            <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
-          ))}
+          {slides.map((_, i) => {
+            const inputRange = [(i - 1) * width, i * width, (i + 1) * width];
+
+            const dotWidth = scrollX.interpolate({
+              inputRange,
+              outputRange: [8, 18, 8],
+              extrapolate: 'clamp',
+            });
+
+            const dotColor = scrollX.interpolate({
+              inputRange,
+              outputRange: ['#1f2a2a', ACCENT, '#1f2a2a'],
+              extrapolate: 'clamp',
+            });
+
+            return (
+              <Animated.View
+                key={i}
+                style={[
+                  styles.dot,
+                  {
+                    width: dotWidth,
+                    backgroundColor: dotColor,
+                  },
+                ]}
+              />
+            );
+          })}
         </View>
 
         <TouchableOpacity style={styles.cta} onPress={onNext}>
@@ -135,7 +161,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   slide: { flex: 1, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'space-between' },
   top: { marginTop: 24, alignItems: 'center', gap: 6 },
-  brand: { width: 120, height: 60, marginBottom: 8 },
+  brand: { width: 160, height: 80, marginBottom: 12 },
   header: { fontSize: 22, color: TEXT, letterSpacing: 1.2 },
   subtitle: { fontSize: 14, color: TEXT_SECONDARY },
   heroWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 8 },

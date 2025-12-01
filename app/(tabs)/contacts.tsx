@@ -1,30 +1,60 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, StatusBar, Switch } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useThrottle } from '@/hooks/useDebounce';
+import { getMyEmergencyContacts, ApiEmergencyContact } from '@/lib/api';
+import DashboardHeader from '@/components/DashboardHeader';
 
-const BG = '#000000';
+const BG = '#0c0b0c';
 const TEXT = '#ffffff';
 const TEXT_SECONDARY = '#d0d0d0';
-const ACCENT = '#00ffd1';
-const CTA = '#00e0b8';
+const ACCENT = '#00ffff';
+const CTA = '#00ffff';
 
-type Contact = { id: string; name: string; phone: string; favorite?: boolean; avatar?: string; status?: 'online' | 'offline'; lastSeen?: string; };
+type Contact = {
+  id: string;
+  name: string;
+  phone: string;
+  favorite?: boolean;
+  avatar?: string;
+  status?: 'online' | 'offline';
+  lastSeen?: string;
+  lat?: number;
+  lng?: number;
+};
 
 export default function ContactsScreen() {
   const insets = useSafeAreaInsets();
-  const [contacts, setContacts] = useState<Contact[]>([
-    { id: '1', name: 'Ana Sánchez', phone: '+51 987 654 321', favorite: true, avatar: '👩', status: 'online' },
-    { id: '2', name: 'Carlos Mendoza', phone: '+51 912 345 678', avatar: '👨', status: 'offline', lastSeen: 'Hace 2h' },
-    { id: '3', name: 'Sara López', phone: '+51 998 765 432', favorite: true, avatar: '👧', status: 'online' },
-    { id: '4', name: 'Miguel Torres', phone: '+51 923 456 789', avatar: '🧑', status: 'offline', lastSeen: 'Hace 1d' },
-  ]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [historyOn, setHistoryOn] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getMyEmergencyContacts();
+        const mapped: Contact[] = data.map((c: ApiEmergencyContact) => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          avatar: c.avatar || undefined,
+          favorite: c.favorite,
+          status: c.status ? (c.status.toLowerCase() as 'online' | 'offline') : undefined,
+          lastSeen: c.lastSeen || undefined,
+          lat: typeof c.lat === 'number' ? c.lat : undefined,
+          lng: typeof c.lng === 'number' ? c.lng : undefined,
+        }));
+        setContacts(mapped);
+      } catch (error) {
+        console.error('Error cargando contactos de emergencia:', error);
+        setContacts([]);
+      }
+    })();
+  }, []);
 
   const navigateToChat = useThrottle((id: string) => {
     router.push(`/chat/contact-${id}` as any);
@@ -45,17 +75,24 @@ export default function ContactsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" />
-      <View style={styles.headerSection}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerIconWrap}>
-            <Ionicons name="shield-checkmark" size={24} color={ACCENT} />
+      <View style={styles.headerWrapper}>
+        <DashboardHeader title="SafeZone" subtitle="Contactos de emergencia" />
+      </View>
+      <View style={styles.topSection}>
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Ionicons name="people" size={24} color={ACCENT} />
+            <Text style={styles.statNumber}>{contacts.length}</Text>
+            <Text style={styles.statLabel}>Contactos</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.header}>Contactos de Emergencia</Text>
-            <Text style={styles.sub}>Recibirán alertas y tu ubicación</Text>
+          <View style={styles.statCard}>
+            <Ionicons name="star" size={24} color="#fbbf24" />
+            <Text style={styles.statNumber}>{contacts.filter(c => c.favorite).length}</Text>
+            <Text style={styles.statLabel}>Favoritos</Text>
           </View>
-          <TouchableOpacity onPress={navigateToHistory} style={styles.historyBtn}>
-            <Ionicons name="chatbubbles" size={20} color={ACCENT} />
+          <TouchableOpacity style={styles.chatCard} onPress={navigateToHistory}>
+            <Ionicons name="chatbubbles" size={24} color={ACCENT} />
+            <Text style={styles.chatLabel}>Chats</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -65,32 +102,41 @@ export default function ContactsScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom }}
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.avatarContainer}>
-              <Text style={styles.avatarText}>{item.avatar || item.name.charAt(0)}</Text>
-              {item.status === 'online' && <View style={styles.onlineIndicator} />}
-            </View>
-            
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={styles.name}>{item.name}</Text>
-                {item.favorite && <Ionicons name="star" size={14} color="#fbbf24" />}
+          <View style={styles.contactCard}>
+            <View style={styles.cardHeader}>
+              <View style={styles.avatarWrapper}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarLetter}>{item.avatar || item.name.charAt(0).toUpperCase()}</Text>
+                </View>
+                {item.status === 'online' && <View style={styles.statusDot} />}
               </View>
-              <Text style={styles.phone}>{item.phone}</Text>
-              {item.status === 'offline' && item.lastSeen && (
-                <Text style={styles.lastSeen}>{item.lastSeen}</Text>
-              )}
+              
+              <View style={styles.contactInfo}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.contactName}>{item.name}</Text>
+                  {item.favorite && (
+                    <View style={styles.favBadge}>
+                      <Ionicons name="star" size={10} color="#001311" />
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.contactPhone}>{item.phone}</Text>
+                {item.status === 'offline' && item.lastSeen && (
+                  <Text style={styles.contactStatus}>{item.lastSeen}</Text>
+                )}
+              </View>
             </View>
             
-            <View style={styles.actionsRow}>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => navigateToChat(item.id)}>
-                <Ionicons name="chatbubbles" size={18} color={CTA} />
+            <View style={styles.cardActions}>
+              <TouchableOpacity style={styles.primaryAction} onPress={() => navigateToChat(item.id)}>
+                <Ionicons name="chatbubbles" size={16} color="#001311" />
+                <Text style={styles.primaryActionText}>Chat</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => toggleFav(item.id)}>
-                <Ionicons name={item.favorite ? 'star' : 'star-outline'} size={18} color={item.favorite ? '#fbbf24' : TEXT_SECONDARY} />
+              <TouchableOpacity style={styles.secondaryAction} onPress={() => toggleFav(item.id)}>
+                <Ionicons name={item.favorite ? 'star' : 'star-outline'} size={16} color={item.favorite ? '#fbbf24' : ACCENT} />
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => remove(item.id)}>
-                <Ionicons name="trash-outline" size={18} color="#ff6b6b" />
+              <TouchableOpacity style={[styles.secondaryAction, styles.dangerAction]} onPress={() => remove(item.id)}>
+                <Ionicons name="trash-outline" size={16} color="#ff6b6b" />
               </TouchableOpacity>
             </View>
           </View>
@@ -133,31 +179,169 @@ export default function ContactsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  headerSection: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerIconWrap: { width: 48, height: 48, borderRadius: 12, backgroundColor: 'rgba(0,255,209,0.12)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(0,255,209,0.3)' },
-  header: { color: TEXT, fontSize: 20, fontWeight: '700' },
-  sub: { color: TEXT_SECONDARY, marginTop: 2, fontSize: 13 },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(255,255,255,0.05)', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 10 },
-  avatarContainer: { position: 'relative' },
-  avatarText: { fontSize: 32, width: 56, height: 56, textAlign: 'center', lineHeight: 56, backgroundColor: 'rgba(0,255,209,0.12)', borderRadius: 14, borderWidth: 2, borderColor: 'rgba(0,255,209,0.3)', overflow: 'hidden' },
-  onlineIndicator: { position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, borderRadius: 14, backgroundColor: '#4ade80', borderWidth: 2, borderColor: BG },
-  name: { color: TEXT, fontWeight: '700', fontSize: 16 },
-  phone: { color: TEXT_SECONDARY, marginTop: 2, fontSize: 13 },
-  lastSeen: { color: TEXT_SECONDARY, marginTop: 2, fontSize: 11 },
-  actionsRow: { flexDirection: 'row', gap: 6 },
-  actionBtn: { width: 36, height: 36, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  deleteBtn: { backgroundColor: 'rgba(255,107,107,0.08)', borderColor: 'rgba(255,107,107,0.2)' },
-  addBtn: { flexDirection: 'row', backgroundColor: CTA, paddingVertical: 12, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 6, marginVertical: 12 },
-  addBtnText: { color: '#001311', fontWeight: '600' },
-  addBox: { backgroundColor: 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginVertical: 12 },
-  input: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, color: TEXT, marginTop: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  cta: { backgroundColor: CTA, paddingVertical: 12, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  ctaText: { color: '#001311' },
-  historyBox: { backgroundColor: 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 16 },
-  historyTitle: { color: TEXT, fontWeight: '600' },
-  historySub: { color: TEXT_SECONDARY, marginTop: 2 },
-  historyFooter: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', marginTop: 10, paddingTop: 8 },
-  historyFooterText: { color: TEXT_SECONDARY, fontSize: 12 },
-  historyBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(0,255,209,0.08)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(0,255,209,0.2)' },
+  headerWrapper: { paddingHorizontal: 16, paddingTop: 0, paddingBottom: 4 },
+  
+  // Top Stats Section
+  topSection: { paddingHorizontal: 16, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  statsRow: { flexDirection: 'row', gap: 12 },
+  statCard: { 
+    flex: 1, 
+    backgroundColor: 'rgba(255,255,255,0.05)', 
+    padding: 16, 
+    borderRadius: 20, 
+    alignItems: 'center', 
+    gap: 8,
+    borderWidth: 1.5, 
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  statNumber: { color: TEXT, fontSize: 24, fontWeight: '700' },
+  statLabel: { color: TEXT_SECONDARY, fontSize: 11, fontWeight: '600', letterSpacing: 0.5 },
+  chatCard: {
+    flex: 1,
+    backgroundColor: 'rgba(0,255,255,0.08)',
+    padding: 16,
+    borderRadius: 20,
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,255,255,0.3)',
+  },
+  chatLabel: { color: ACCENT, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  
+  // Contact Card
+  contactCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
+    gap: 14,
+  },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatarWrapper: { position: 'relative' },
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(0,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2.5,
+    borderColor: 'rgba(0,255,255,0.3)',
+  },
+  avatarLetter: { color: ACCENT, fontSize: 24, fontWeight: '700' },
+  statusDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#4ade80',
+    borderWidth: 3,
+    borderColor: BG,
+  },
+  contactInfo: { flex: 1, gap: 4 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  contactName: { color: TEXT, fontSize: 17, fontWeight: '700' },
+  favBadge: {
+    backgroundColor: '#fbbf24',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contactPhone: { color: TEXT_SECONDARY, fontSize: 14, fontWeight: '500' },
+  contactStatus: { color: TEXT_SECONDARY, fontSize: 12, marginTop: 2 },
+  
+  // Card Actions
+  cardActions: { flexDirection: 'row', gap: 8 },
+  primaryAction: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: ACCENT,
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  primaryActionText: { color: '#001311', fontSize: 13, fontWeight: '700' },
+  secondaryAction: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  dangerAction: {
+    backgroundColor: 'rgba(255,107,107,0.1)',
+    borderColor: 'rgba(255,107,107,0.3)',
+  },
+  
+  // Add Contact
+  addBtn: { 
+    flexDirection: 'row', 
+    backgroundColor: CTA, 
+    paddingVertical: 14, 
+    borderRadius: 16, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 8, 
+    marginVertical: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(0,255,255,0.5)',
+  },
+  addBtnText: { color: '#001311', fontWeight: '700', fontSize: 14 },
+  addBox: { 
+    backgroundColor: 'rgba(255,255,255,0.05)', 
+    padding: 16, 
+    borderRadius: 16, 
+    borderWidth: 1.5, 
+    borderColor: 'rgba(255,255,255,0.1)', 
+    marginVertical: 12,
+    gap: 10,
+  },
+  input: { 
+    backgroundColor: 'rgba(255,255,255,0.08)', 
+    borderRadius: 12, 
+    paddingHorizontal: 16, 
+    paddingVertical: 14, 
+    color: TEXT, 
+    borderWidth: 1.5, 
+    borderColor: 'rgba(255,255,255,0.15)',
+    fontSize: 15,
+  },
+  cta: { 
+    backgroundColor: CTA, 
+    paddingVertical: 14, 
+    borderRadius: 12, 
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(0,255,255,0.5)',
+  },
+  ctaText: { color: '#001311', fontWeight: '700', fontSize: 14 },
+  
+  // History Box
+  historyBox: { 
+    backgroundColor: 'rgba(255,255,255,0.05)', 
+    padding: 16, 
+    borderRadius: 16, 
+    borderWidth: 1.5, 
+    borderColor: 'rgba(255,255,255,0.1)', 
+    marginBottom: 16,
+    gap: 12,
+  },
+  historyTitle: { color: TEXT, fontWeight: '700', fontSize: 15 },
+  historySub: { color: TEXT_SECONDARY, marginTop: 2, fontSize: 12, fontWeight: '600' },
+  historyFooter: { 
+    borderTopWidth: 1.5, 
+    borderTopColor: 'rgba(255,255,255,0.1)', 
+    paddingTop: 12,
+  },
+  historyFooterText: { color: TEXT_SECONDARY, fontSize: 12, fontWeight: '500' },
 });

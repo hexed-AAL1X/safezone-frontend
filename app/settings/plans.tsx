@@ -1,37 +1,26 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Alert, TextInput } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-const BG = '#000000';
+const BG = '#0c0b0c';
 const TEXT = '#ffffff';
 const TEXT_SECONDARY = '#d0d0d0';
-const ACCENT = '#00ffd1';
-const CTA = '#00e0b8';
+const ACCENT = '#00ffff';
+const CTA = '#00ffff';
 
 type Plan = 'free' | 'premium';
 
 export default function PlansScreen() {
   const insets = useSafeAreaInsets();
   const [selectedPlan, setSelectedPlan] = useState<Plan>('free');
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
 
   const handleSelectPlan = (plan: Plan) => {
     if (plan === 'premium') {
-      Alert.alert(
-        'Actualizar a Premium',
-        '¿Deseas actualizar tu plan a Premium por $9.99/mes?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Suscribirme',
-            onPress: () => {
-              setSelectedPlan('premium');
-              Alert.alert('¡Bienvenido a Premium!', 'Tu suscripción ha sido activada.');
-            },
-          },
-        ]
-      );
+      setSelectedPlan('premium');
+      setShowPaymentForm(true);
     } else {
       Alert.alert(
         'Cambiar a Plan Gratuito',
@@ -43,6 +32,7 @@ export default function PlansScreen() {
             style: 'destructive',
             onPress: () => {
               setSelectedPlan('free');
+              setShowPaymentForm(false);
               Alert.alert('Plan actualizado', 'Ahora estás en el plan gratuito.');
             },
           },
@@ -167,9 +157,66 @@ export default function PlansScreen() {
           </View>
 
           {selectedPlan !== 'premium' && (
-            <TouchableOpacity style={[styles.selectBtn, styles.selectBtnPremium]} onPress={() => handleSelectPlan('premium')}>
-              <Text style={[styles.selectBtnText, { color: '#001311' }]}>Actualizar a Premium</Text>
+            <TouchableOpacity
+              style={[styles.selectBtn, styles.selectBtnPremium]}
+              onPress={() => handleSelectPlan('premium')}
+            >
+              <Text style={[styles.selectBtnText, { color: '#001311' }]}>Probar Premium 14 días gratis</Text>
             </TouchableOpacity>
+          )}
+
+          {selectedPlan === 'premium' && showPaymentForm && (
+            <View style={styles.paymentBox}>
+              <Text style={styles.paymentTitle}>Prueba gratis por 14 días</Text>
+              <Text style={styles.paymentSubtitle}>
+                No se te cobrará nada hoy. Después de los 14 días, el plan cuesta $9.99/mes. Puedes
+                cancelar en cualquier momento.
+              </Text>
+
+              <Text style={styles.paymentLabel}>Número de tarjeta</Text>
+              <TextInput
+                style={styles.paymentInput}
+                placeholder="0000 0000 0000 0000"
+                placeholderTextColor={TEXT_SECONDARY}
+                keyboardType="number-pad"
+              />
+
+              <View style={styles.paymentRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.paymentLabel}>Vencimiento</Text>
+                  <TextInput
+                    style={styles.paymentInput}
+                    placeholder="MM/AA"
+                    placeholderTextColor={TEXT_SECONDARY}
+                    keyboardType="number-pad"
+                  />
+                </View>
+                <View style={{ width: 16 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.paymentLabel}>CVV</Text>
+                  <TextInput
+                    style={styles.paymentInput}
+                    placeholder="123"
+                    placeholderTextColor={TEXT_SECONDARY}
+                    keyboardType="number-pad"
+                    secureTextEntry
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.paymentCta}
+                onPress={() => {
+                  Alert.alert(
+                    'Prueba activada',
+                    'Tu prueba gratis de 14 días de SafeZone Premium ha sido activada.',
+                  );
+                  setShowPaymentForm(false);
+                }}
+              >
+                <Text style={styles.paymentCtaText}>INICIAR PRUEBA GRATIS DE 14 DÍAS</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -201,4 +248,12 @@ const styles = StyleSheet.create({
   selectBtn: { backgroundColor: 'rgba(255,255,255,0.08)', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   selectBtnPremium: { backgroundColor: CTA, borderColor: CTA },
   selectBtnText: { color: TEXT, fontSize: 15, fontWeight: '600' },
+  paymentBox: { marginTop: 16, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(0,255,209,0.25)', gap: 10 },
+  paymentTitle: { color: TEXT, fontSize: 16, fontWeight: '700' },
+  paymentSubtitle: { color: TEXT_SECONDARY, fontSize: 12, marginTop: 2 },
+  paymentLabel: { color: TEXT_SECONDARY, fontSize: 12, marginTop: 10, marginBottom: 4 },
+  paymentInput: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 10, color: TEXT, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', fontSize: 14 },
+  paymentRow: { flexDirection: 'row', marginTop: 4 },
+  paymentCta: { marginTop: 14, backgroundColor: CTA, borderRadius: 12, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  paymentCtaText: { color: '#001311', fontWeight: '700', fontSize: 13, letterSpacing: 0.5 },
 });

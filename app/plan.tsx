@@ -7,11 +7,11 @@ import { useFonts as useOrbitron, Orbitron_500Medium } from '@expo-google-fonts/
 import { useFonts as useMontserrat, Montserrat_600SemiBold } from '@expo-google-fonts/montserrat';
 import { useFonts as useInter, Inter_400Regular } from '@expo-google-fonts/inter';
 
-const BG = '#000000';
+const BG = '#0c0b0c';
 const TEXT = '#ffffff';
 const TEXT_SECONDARY = '#d0d0d0';
-const ACCENT = '#00ffd1';
-const CTA = '#00e0b8';
+const ACCENT = '#00ffff';
+const CTA = '#00ffff';
 const GOLD = '#ffcc33';
 
 export default function PlanScreen() {
@@ -49,7 +49,6 @@ export default function PlanScreen() {
             <View style={styles.bulletRow}><Text style={styles.bullet}>•</Text><Text style={styles.bulletText}>Aviso a 1 contacto</Text></View>
             <View style={styles.bulletRow}><Text style={styles.bullet}>•</Text><Text style={styles.bulletText}>Geolocalización</Text></View>
             <View style={styles.bulletRow}><Text style={styles.bullet}>•</Text><Text style={styles.bulletText}>Historial 7 días</Text></View>
-            <View style={styles.bulletRow}><Text style={styles.bullet}>•</Text><Text style={styles.bulletText}>Taxis verificados</Text></View>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.card, styles.cardPremium, plan === 'premium' && styles.cardActive]} onPress={() => setPlan('premium')}>

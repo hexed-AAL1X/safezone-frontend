@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, StatusBar, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { requestPasswordReset, verifyResetCode, resetPasswordWithCode } from '@/lib/api';
 import { useFonts as useOrbitron, Orbitron_500Medium } from '@expo-google-fonts/orbitron';
 import { useFonts as useMontserrat, Montserrat_600SemiBold } from '@expo-google-fonts/montserrat';
 import { useFonts as useInter, Inter_400Regular } from '@expo-google-fonts/inter';
 
-const BG = '#000000';
+const BG = '#0c0b0c';
 const TEXT = '#ffffff';
 const TEXT_SECONDARY = '#d0d0d0';
-const ACCENT = '#00ffd1';
-const CTA = '#00e0b8';
+const ACCENT = '#00ffff';
+const CTA = '#00ffff';
 
 export default function RecoverScreen() {
   const insets = useSafeAreaInsets();
@@ -20,25 +21,91 @@ export default function RecoverScreen() {
   const [interLoaded] = useInter({ Inter_400Regular });
 
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [step, setStep] = useState<'request' | 'verify' | 'reset'>('request');
   const [loading, setLoading] = useState(false);
 
-  const onSend = async () => {
+  const passwordStrength = useMemo(() => {
+    const value = newPassword || '';
+    let score = 0;
+    if (value.length >= 6) score++;
+    if (/[A-Z]/.test(value) && /[a-z]/.test(value)) score++;
+    if (/\d/.test(value) || /[^A-Za-z0-9]/.test(value)) score++;
+
+    if (!value) {
+      return { label: '', color: TEXT_SECONDARY, score: 0, max: 3 };
+    }
+
+    if (score <= 1) return { label: 'Débil', color: '#ff4d4f', score: 1, max: 3 };
+    if (score === 2) return { label: 'Media', color: '#ffc53d', score: 2, max: 3 };
+    return { label: 'Fuerte', color: '#52c41a', score: 3, max: 3 };
+  }, [newPassword]);
+
+  const onSendCode = async () => {
     if (!email) {
-      Alert.alert('Correo requerido', 'Ingresa tu correo para enviarte un enlace.');
+      Alert.alert('Correo requerido', 'Ingresa tu correo para enviarte un código.');
       return;
     }
     setLoading(true);
     try {
-      await new Promise(res => setTimeout(res, 900));
-      Alert.alert('Enviado', 'Revisa tu correo para restablecer tu contraseña.');
+      const res = await requestPasswordReset(email);
+      Alert.alert('Código enviado', res.message || 'Revisa tu correo para obtener el código.');
+      setStep('verify');
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'No se pudo enviar el código de recuperación.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onVerifyCode = async () => {
+    if (!code) {
+      Alert.alert('Código requerido', 'Ingresa el código que recibiste por correo.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await verifyResetCode({ email, token: code });
+      Alert.alert('Código verificado', res.message || 'Ahora puedes elegir una nueva contraseña.');
+      setStep('reset');
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'No se pudo verificar el código.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onChangePassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      Alert.alert('Campos faltantes', 'Completa todos los campos.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Contraseñas no coinciden', 'Verifica tu nueva contraseña.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert('Contraseña muy corta', 'La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await resetPasswordWithCode({ email, token: code, newPassword });
+      Alert.alert('Contraseña cambiada', res.message || 'Ya puedes iniciar sesión con tu nueva contraseña.');
       router.replace('/login');
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'No se pudo cambiar la contraseña.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { paddingTop: Math.max(24, insets.top + 8) }]}> 
+    <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}> 
       <StatusBar barStyle="light-content" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(24, insets.bottom + 12) }]} keyboardShouldPersistTaps="handled">
@@ -48,7 +115,13 @@ export default function RecoverScreen() {
           </View>
 
           <Text style={[styles.title, { fontFamily: montLoaded ? 'Montserrat_600SemiBold' : undefined }]}>Recupera tu contraseña</Text>
-          <Text style={[styles.subtitle, { fontFamily: interLoaded ? 'Inter_400Regular' : undefined }]}>Te enviaremos un enlace a tu correo</Text>
+          <Text style={[styles.subtitle, { fontFamily: interLoaded ? 'Inter_400Regular' : undefined }]}>
+            {step === 'request'
+              ? 'Te enviaremos un código a tu correo'
+              : step === 'verify'
+              ? 'Ingresa el código que te enviamos'
+              : 'Elige tu nueva contraseña'}
+          </Text>
 
           <View style={styles.form}>
             <TextInput
@@ -61,9 +134,107 @@ export default function RecoverScreen() {
               keyboardType="email-address"
             />
 
-            <TouchableOpacity style={styles.cta} onPress={onSend} disabled={loading}>
-              <Text style={[styles.ctaText, { fontFamily: montLoaded ? 'Montserrat_600SemiBold' : undefined }]}>{loading ? 'Enviando...' : 'ENVIAR ENLACE'}</Text>
-            </TouchableOpacity>
+            {step === 'request' && (
+              <TouchableOpacity style={styles.cta} onPress={onSendCode} disabled={loading}>
+                <Text style={[styles.ctaText, { fontFamily: montLoaded ? 'Montserrat_600SemiBold' : undefined }]}>{loading ? 'Enviando...' : 'ENVIAR CÓDIGO'}</Text>
+              </TouchableOpacity>
+            )}
+
+            {step === 'verify' && (
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Código de recuperación"
+                  placeholderTextColor={TEXT_SECONDARY}
+                  value={code}
+                  onChangeText={setCode}
+                  keyboardType="number-pad"
+                />
+                <TouchableOpacity style={styles.cta} onPress={onVerifyCode} disabled={loading}>
+                  <Text style={[styles.ctaText, { fontFamily: montLoaded ? 'Montserrat_600SemiBold' : undefined }]}>{loading ? 'Verificando...' : 'VERIFICAR CÓDIGO'}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {step === 'reset' && (
+              <>
+                <View style={styles.passwordInputRow}>
+                  <TextInput
+                    style={[styles.input, styles.passwordInput]}
+                    placeholder="Nueva contraseña"
+                    placeholderTextColor={TEXT_SECONDARY}
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    secureTextEntry={!showNewPassword}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowNewPassword(prev => !prev)}
+                    style={styles.eyeButton}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={showNewPassword ? 'eye-off' : 'eye'}
+                      size={18}
+                      color={TEXT_SECONDARY}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {newPassword ? (
+                  <>
+                    <View style={styles.passwordStrengthRow}>
+                      {[0, 1, 2].map((idx) => (
+                        <View
+                          key={idx}
+                          style={[
+                            styles.passwordStrengthBar,
+                            idx < passwordStrength.score && { backgroundColor: passwordStrength.color },
+                          ]}
+                        />
+                      ))}
+                    </View>
+                    {passwordStrength.label ? (
+                      <Text
+                        style={{
+                          color: passwordStrength.color,
+                          fontSize: 12,
+                          marginTop: 4,
+                          marginBottom: 4,
+                        }}
+                      >
+                        Seguridad de la contraseña: {passwordStrength.label}
+                      </Text>
+                    ) : null}
+                  </>
+                ) : null}
+
+                <View style={styles.passwordInputRow}>
+                  <TextInput
+                    style={[styles.input, styles.passwordInput]}
+                    placeholder="Confirmar nueva contraseña"
+                    placeholderTextColor={TEXT_SECONDARY}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirmPassword}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowConfirmPassword(prev => !prev)}
+                    style={styles.eyeButton}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={showConfirmPassword ? 'eye-off' : 'eye'}
+                      size={18}
+                      color={TEXT_SECONDARY}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity style={styles.cta} onPress={onChangePassword} disabled={loading}>
+                  <Text style={[styles.ctaText, { fontFamily: montLoaded ? 'Montserrat_600SemiBold' : undefined }]}>{loading ? 'Guardando...' : 'CAMBIAR CONTRASEÑA'}</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
 
           <View style={styles.bottomLinks}>
@@ -99,4 +270,9 @@ const styles = StyleSheet.create({
   bottomLinks: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 16 },
   link: { color: ACCENT },
   dot: { color: '#666', marginHorizontal: 6 },
+  passwordStrengthRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: 4 },
+  passwordStrengthBar: { width: 16, height: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.16)' },
+  passwordInputRow: { position: 'relative', justifyContent: 'center', marginTop: 4 },
+  passwordInput: { paddingRight: 40 },
+  eyeButton: { position: 'absolute', right: 12, height: '100%', justifyContent: 'center' },
 });

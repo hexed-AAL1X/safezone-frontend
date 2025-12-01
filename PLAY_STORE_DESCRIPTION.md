@@ -2,7 +2,7 @@
 
 ## Título de la aplicación (50 caracteres)
 ```
-SafeZone - Seguridad Personal
+SafeZone: Build V1.0
 ```
 
 ## Descripción corta (80 caracteres)
@@ -38,13 +38,6 @@ SafeZone es la aplicación de seguridad personal más completa que te protege en
 • Reviews de seguridad en discotecas y bares
 • Alertas comunitarias en tiempo real
 • Chat con otros usuarios
-
-🚕 TAXIS VERIFICADOS
-• Conductores con antecedentes verificados
-• Perfiles completos con datos personales
-• Ratings y reseñas de usuarios
-• Contacto de emergencia del conductor
-• Historial de viajes
 
 🎵 LUGARES VERIFICADOS
 • Discotecas y clubs con ratings de seguridad
@@ -124,7 +117,6 @@ Tus datos están seguros. Lee nuestra política de privacidad completa en la app
 Descarga SafeZone ahora y empieza a vivir más seguro. Tu tranquilidad no tiene precio.
 
 #Seguridad #SOS #Emergencias #UbicaciónTiempoReal #SeguridadPersonal
-```
 
 ## Categoría
 ```
@@ -134,7 +126,7 @@ Categoría secundaria: Estilo de vida
 
 ## Etiquetas (tags)
 ```
-seguridad, emergencia, sos, ubicación, gps, alerta, protección, comunidad, taxis, verificado
+seguridad, emergencia, sos, ubicación, gps, alerta, protección, comunidad, verificado
 ```
 
 ## Clasificación de contenido
@@ -153,7 +145,7 @@ Características iniciales:
 ✅ Notificación automática a la policía
 ✅ Compartir ubicación en tiempo real
 ✅ Mapa interactivo con contactos
-✅ Taxis verificados con perfiles completos
+✅ Mapa de contactos en tiempo real
 ✅ Discotecas y clubs con ratings de seguridad
 ✅ Comunidad de usuarios por zonas
 ✅ Chat con contactos y grupos

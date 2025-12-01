@@ -8,12 +8,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFonts as useOrbitron, Orbitron_500Medium } from '@expo-google-fonts/orbitron';
 import { useFonts as useMontserrat, Montserrat_600SemiBold } from '@expo-google-fonts/montserrat';
 import { useFonts as useInter, Inter_400Regular } from '@expo-google-fonts/inter';
+import { loginUser } from '@/lib/api';
 
-const BG = '#000000';
+const BG = '#0c0b0c';
 const TEXT = '#ffffff';
 const TEXT_SECONDARY = '#d0d0d0';
-const ACCENT = '#00ffd1';
-const CTA = '#00e0b8';
+const ACCENT = '#00ffff';
+const CTA = '#00ffff';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -23,6 +24,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const navigateToRecover = useThrottle(() => router.push('/recover' as any), 800);
   const navigateToRegister = useThrottle(() => router.push('/register' as any), 800);
@@ -37,16 +39,14 @@ export default function LoginScreen() {
     
     try {
       // Aquí iría la lógica de autenticación
-      console.log('Iniciando sesión con:', { email, password });
-      
-      // Simulando una petición a la API
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const { user } = await loginUser({ email, password });
+      console.log('Usuario autenticado:', user);
       
       // Navegar al inicio después del inicio de sesión exitoso
       router.replace('/(tabs)');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al iniciar sesión:', error);
-      Alert.alert('Error', 'No se pudo iniciar sesión. Verifica tus credenciales.');
+      Alert.alert('Error', error?.message || 'No se pudo iniciar sesión. Verifica tus credenciales.');
     } finally {
       setIsLoading(false);
     }
@@ -67,7 +67,7 @@ export default function LoginScreen() {
         >
           <View style={styles.logoContainer}>
             <Image
-              source={require('../assets/images/logo.png')}
+              source={require('../assets/images/icon_launcher.png')}
               style={styles.logo}
               contentFit="contain"
             />
@@ -77,32 +77,43 @@ export default function LoginScreen() {
 
           <View style={styles.formContainer}>
             <View style={styles.inputContainer}>
-              <Text style={[styles.label, { fontFamily: interLoaded ? 'Inter_400Regular' : undefined }]}>Correo electrónico</Text>
               <TextInput
                 style={styles.input}
-                placeholder="correo@ejemplo.com"
+                placeholder="Correo electrónico"
                 placeholderTextColor="#d0d0d0"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                autoComplete="email"
-                textContentType="emailAddress"
+                autoComplete="off"
+                textContentType="none"
               />
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={[styles.label, { fontFamily: interLoaded ? 'Inter_400Regular' : undefined }]}>Contraseña</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor="#d0d0d0"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoComplete="password"
-                textContentType="password"
-              />
+              <View style={styles.passwordRow}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput]}
+                  placeholder="Contraseña"
+                  placeholderTextColor="#d0d0d0"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  autoComplete="off"
+                  textContentType="none"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(prev => !prev)}
+                  style={styles.eyeButton}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off' : 'eye'}
+                    size={18}
+                    color="#d0d0d0"
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <TouchableOpacity 
@@ -141,11 +152,6 @@ export default function LoginScreen() {
                 <Text style={styles.socialBtnText}>Facebook</Text>
               </TouchableOpacity>
             </View>
-            
-            <TouchableOpacity style={[styles.socialBtn, styles.appleBtn]}>
-              <Ionicons name="logo-apple" size={22} color="#fff" />
-              <Text style={styles.socialBtnText}>Apple</Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -160,10 +166,13 @@ const styles = StyleSheet.create({
   logo: { width: 96, height: 96, marginBottom: 8 },
   brand: { color: TEXT, fontSize: 18, letterSpacing: 1.2 },
   title: { color: TEXT, fontSize: 22, marginTop: 4 },
-  formContainer: { width: '100%', maxWidth: 420, alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 20 },
+  formContainer: { width: '100%', maxWidth: 420, alignSelf: 'center', paddingTop: 12 },
   inputContainer: { marginBottom: 14 },
   label: { fontSize: 13, color: TEXT },
   input: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: TEXT, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  passwordRow: { position: 'relative', justifyContent: 'center' },
+  passwordInput: { paddingRight: 40 },
+  eyeButton: { position: 'absolute', right: 12, height: '100%', justifyContent: 'center' },
   cta: { backgroundColor: CTA, paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginTop: 6 },
   ctaText: { color: '#001311', fontSize: 16 },
   buttonDisabled: { opacity: 0.8 },

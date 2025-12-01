@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Status
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { deleteMyAccount, resetMyData } from '@/lib/api';
 
-const BG = '#000000';
+const BG = '#0c0b0c';
 const TEXT = '#ffffff';
 const TEXT_SECONDARY = '#d0d0d0';
 const DANGER = '#ff6b6b';
@@ -27,14 +29,23 @@ export default function DangerZoneScreen() {
         {
           text: 'Eliminar definitivamente',
           style: 'destructive',
-          onPress: () => {
-            // Aquí iría la lógica de eliminación
-            Alert.alert('Cuenta eliminada', 'Tu cuenta ha sido eliminada permanentemente.', [
-              {
-                text: 'OK',
-                onPress: () => router.replace('/login' as any),
-              },
-            ]);
+          onPress: async () => {
+            try {
+              const res = await deleteMyAccount();
+
+              // Limpiar credenciales locales
+              await AsyncStorage.multiRemove(['auth_token', 'auth_user']);
+
+              Alert.alert('Cuenta eliminada', res.message || 'Tu cuenta ha sido eliminada permanentemente.', [
+                {
+                  text: 'OK',
+                  onPress: () => router.replace('/login' as any),
+                },
+              ]);
+            } catch (error: any) {
+              console.error('Error al eliminar la cuenta:', error);
+              Alert.alert('Error', error?.message || 'No se pudo eliminar la cuenta. Inténtalo de nuevo.');
+            }
           },
         },
       ]
@@ -44,14 +55,20 @@ export default function DangerZoneScreen() {
   const handleResetData = () => {
     Alert.alert(
       'Restablecer datos',
-      'Se eliminarán todos tus chats, historial de ubicaciones y configuraciones. Tu cuenta permanecerá activa.',
+      'Se eliminarán tus chats, ubicaciones y configuraciones de SafeZone. Tu cuenta (nombre, correo, teléfono, contraseña) permanecerá activa.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Restablecer',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Éxito', 'Datos restablecidos correctamente');
+          onPress: async () => {
+            try {
+              const res = await resetMyData();
+              Alert.alert('Éxito', res.message || 'Datos restablecidos correctamente');
+            } catch (error: any) {
+              console.error('Error al restablecer datos:', error);
+              Alert.alert('Error', error?.message || 'No se pudieron restablecer los datos.');
+            }
           },
         },
       ]
@@ -59,7 +76,7 @@ export default function DangerZoneScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { paddingBottom: Math.max(16, insets.bottom + 8) }]}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       
       <View style={styles.header}>
@@ -70,7 +87,12 @@ export default function DangerZoneScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(24, insets.bottom + 12) },
+        ]}
+      >
         {/* Warning Banner */}
         <View style={styles.warningBanner}>
           <Ionicons name="warning" size={32} color={DANGER} />
