@@ -1,12 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'http://4.201.139.84:3001/api';
-
-if (!API_BASE_URL) {
-  // Fallback de seguridad, aunque en la práctica siempre tendremos algo
-  // eslint-disable-next-line no-console
-  console.warn('API_BASE_URL no definido. Configura EXPO_PUBLIC_API_URL.');
-}
+// MODO DEMO SIN BACKEND
+// Todas las funciones devuelven datos locales y nunca hacen fetch.
 
 interface ApiResponseSuccess<T> {
   status: 'success';
@@ -38,45 +33,29 @@ export type ApiUser = {
   updatedAt?: string;
 };
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const base = API_BASE_URL.replace(/\/$/, '');
-  const urlPath = path.startsWith('/') ? path : `/${path}`;
-  const url = `${base}${urlPath}`;
+// Usuario demo fijo
+const DEMO_USER: ApiUser = {
+  id: 'demo-user-1',
+  email: 'safezone@gmail.com',
+  name: 'Jhon Doe',
+  firstName: 'Jhon',
+  lastName: 'Doe',
+  phone: '+51 987654321',
+  address: 'Miraflores, Lima',
+  avatarUrl: null,
+  plan: 'FREE',
+  planUpdatedAt: null,
+  notificationsEnabled: true,
+  locationSharingEnabled: true,
+  darkModeEnabled: true,
+  locationHistoryEnabled: true,
+  role: 'USER',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
 
-  const defaultHeaders: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
+const DEMO_TOKEN = 'demo-token-safezone';
 
-  const token = await AsyncStorage.getItem('auth_token');
-
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
-  });
-
-  let json: ApiResponseSuccess<unknown> | ApiResponseError | null = null;
-  try {
-    json = (await response.json()) as any;
-  } catch {
-    // ignorar parse error, se manejará abajo
-  }
-
-  if (!response.ok) {
-    const message =
-      (json as ApiResponseError | null)?.message ||
-      `Error de red (${response.status})`;
-    throw new Error(message);
-  }
-
-  return (json as ApiResponseSuccess<T>).data;
-}
 
 export async function registerUser(params: {
   firstName: string;
@@ -90,49 +69,63 @@ export async function registerUser(params: {
   guardianExperience?: string;
   guardianAcceptedTerms?: boolean;
 }): Promise<{ user: ApiUser; token: string }> {
-  const data = await request<{ user: ApiUser; token: string }>(
-    '/users/register',
-    {
-      method: 'POST',
-      body: JSON.stringify(params),
-    },
-  );
+  // Ignoramos credenciales reales y siempre registramos al usuario demo
+  const user: ApiUser = {
+    ...DEMO_USER,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 
   await AsyncStorage.multiSet([
-    ['auth_token', data.token],
-    ['auth_user', JSON.stringify(data.user)],
+    ['auth_token', DEMO_TOKEN],
+    ['auth_user', JSON.stringify(user)],
   ]);
 
-  return data;
+  return { user, token: DEMO_TOKEN };
 }
 
 export async function deleteMyAccount(): Promise<{ message: string }> {
-  const data = await request<{ message: string }>('/users/me', {
-    method: 'DELETE',
-  });
+  // Modo demo: simplemente borramos los datos locales
   await AsyncStorage.multiRemove(['auth_token', 'auth_user']);
-  return data;
+  return { message: 'Cuenta demo eliminada localmente.' };
 }
 
 export async function resetMyData(): Promise<{ message: string }> {
-  const data = await request<{ message: string }>('/users/reset-data', {
-    method: 'POST',
-  });
-  return data;
+  // Modo demo: limpiamos chats y contactos almacenados localmente
+  const keys = await AsyncStorage.getAllKeys();
+  const toRemove = keys.filter((k) =>
+    k.startsWith('chat_history_') ||
+    k === 'auth_token' ||
+    k === 'auth_user',
+  );
+  if (toRemove.length) {
+    await AsyncStorage.multiRemove(toRemove);
+  }
+  await AsyncStorage.multiSet([
+    ['auth_token', DEMO_TOKEN],
+    ['auth_user', JSON.stringify(DEMO_USER)],
+  ]);
+  return { message: 'Datos de la cuenta demo reiniciados localmente.' };
 }
 
 export async function verifyMyPassword(params: {
   currentPassword: string;
 }): Promise<{ message: string }> {
-  const data = await request<{ message: string }>('/users/verify-password', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  });
-  return data;
+  // Modo demo: siempre consideramos la contraseña válida
+  return { message: 'Contraseña verificada (demo, sin backend).' };
 }
 
 export async function getCurrentUserProfile(): Promise<{ user: ApiUser }> {
-  return request<{ user: ApiUser }>('/users/me');
+  const stored = await AsyncStorage.getItem('auth_user');
+  if (stored) {
+    try {
+      const user = JSON.parse(stored) as ApiUser;
+      return { user };
+    } catch {}
+  }
+  await AsyncStorage.setItem('auth_user', JSON.stringify(DEMO_USER));
+  await AsyncStorage.setItem('auth_token', DEMO_TOKEN);
+  return { user: DEMO_USER };
 }
 
 export async function updateMyProfile(params: {
@@ -142,21 +135,26 @@ export async function updateMyProfile(params: {
   address?: string;
   avatarUrl?: string | null;
 }): Promise<{ user: ApiUser }> {
-  return request<{ user: ApiUser }>('/users/me', {
-    method: 'PUT',
-    body: JSON.stringify(params),
-  });
+  const baseUser = (await getCurrentUserProfile()).user;
+  const updated: ApiUser = {
+    ...baseUser,
+    name: params.name ?? baseUser.name,
+    email: params.email ?? baseUser.email,
+    phone: params.phone ?? baseUser.phone,
+    address: params.address ?? baseUser.address,
+    avatarUrl: params.avatarUrl ?? baseUser.avatarUrl ?? null,
+    updatedAt: new Date().toISOString(),
+  };
+  await AsyncStorage.setItem('auth_user', JSON.stringify(updated));
+  return { user: updated };
 }
 
 export async function changeMyPassword(params: {
   currentPassword: string;
   newPassword: string;
 }): Promise<{ message: string }> {
-  const data = await request<{ message: string }>('/users/change-password', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  });
-  return data;
+  // Modo demo: no cambiamos nada realmente
+  return { message: 'Contraseña actualizada (demo, sin backend).' };
 }
 
 // --- Dashboard data ---
@@ -175,8 +173,77 @@ export type ApiClub = {
   lng: number;
 };
 
+// Antros / clubs demo en Lima
+const DEMO_CLUBS: ApiClub[] = [
+  {
+    id: 'club-eclipse',
+    name: 'Club Eclipse Miraflores',
+    rating: 4.7,
+    tags: ['Miraflores', 'Reggaetón', 'Seguridad'],
+    imageUrl: null,
+    openUntil: '03:00',
+    priceLevel: 3,
+    atmosphere: 'Ambiente urbano con protocolo anti-acoso activo.',
+    reviews: 124,
+    lat: -12.1215,
+    lng: -77.0301,
+  },
+  {
+    id: 'club-neon',
+    name: 'Neon Bar Barranco',
+    rating: 4.5,
+    tags: ['Barranco', 'Electrónica', 'Terraza'],
+    imageUrl: null,
+    openUntil: '04:00',
+    priceLevel: 2,
+    atmosphere: 'Bar lounge con pista pequeña y buena vista.',
+    reviews: 89,
+    lat: -12.143,
+    lng: -77.022,
+  },
+  {
+    id: 'club-cueva',
+    name: 'La Cueva Lima',
+    rating: 4.6,
+    tags: ['Centro', 'Rock', 'Anti-acoso'],
+    imageUrl: null,
+    openUntil: '02:30',
+    priceLevel: 2,
+    atmosphere: 'Espacio underground con controles estrictos de seguridad.',
+    reviews: 73,
+    lat: -12.053,
+    lng: -77.037,
+  },
+  {
+    id: 'club-malecon',
+    name: 'Malecón Night',
+    rating: 4.4,
+    tags: ['Miraflores', 'Vista al mar'],
+    imageUrl: null,
+    openUntil: '01:30',
+    priceLevel: 3,
+    atmosphere: 'Ambiente tranquilo para salir en grupo y conversar.',
+    reviews: 51,
+    lat: -12.126,
+    lng: -77.033,
+  },
+  {
+    id: 'club-safezone',
+    name: 'SafeZone Experience',
+    rating: 5.0,
+    tags: ['Demo', 'Seguridad total'],
+    imageUrl: null,
+    openUntil: 'Siempre',
+    priceLevel: 1,
+    atmosphere: 'Club ficticio para mostrar cómo SafeZone puede ayudarte.',
+    reviews: 999,
+    lat: -12.09,
+    lng: -77.03,
+  },
+];
+
 export async function getClubs(): Promise<ApiClub[]> {
-  return request<ApiClub[]>('/clubs');
+  return DEMO_CLUBS;
 }
 
 export async function createClub(params: {
@@ -189,10 +256,21 @@ export async function createClub(params: {
   priceLevel?: number;
   atmosphere?: string | null;
 }): Promise<ApiClub> {
-  return request<ApiClub>('/clubs', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  });
+  const created: ApiClub = {
+    id: `club-${Date.now()}`,
+    name: params.name,
+    rating: 4.5,
+    tags: params.tags ?? ['Nuevo'],
+    imageUrl: params.imageUrl ?? null,
+    openUntil: params.openUntil ?? null,
+    priceLevel: params.priceLevel ?? 2,
+    atmosphere: params.atmosphere ?? 'Club creado en modo demo.',
+    reviews: 0,
+    lat: params.lat,
+    lng: params.lng,
+  };
+  DEMO_CLUBS.push(created);
+  return created;
 }
 
 export type ApiCommunityGroup = {
@@ -205,8 +283,61 @@ export type ApiCommunityGroup = {
   onlineCount: number;
 };
 
+const DEMO_GROUPS: ApiCommunityGroup[] = [
+  {
+    id: 'grupo-1',
+    name: 'Noches Seguras Miraflores',
+    category: 'Salidas y fiestas',
+    description:
+      'Grupo para coordinar salidas seguras por Miraflores, compartir experiencias y tips de seguridad.',
+    avatar: '🌃',
+    membersCount: 128,
+    onlineCount: 18,
+  },
+  {
+    id: 'grupo-2',
+    name: 'Barranco Sin Acoso',
+    category: 'Comunidad',
+    description:
+      'Personas que salen por Barranco y usan SafeZone para reportar y prevenir situaciones de riesgo.',
+    avatar: '🎶',
+    membersCount: 96,
+    onlineCount: 12,
+  },
+  {
+    id: 'grupo-3',
+    name: 'Amigos SafeZone Lima',
+    category: 'Historias SafeZone',
+    description:
+      'Historias reales de cómo SafeZone ayudó a volver a casa seguros después de la fiesta.',
+    avatar: '🛟',
+    membersCount: 210,
+    onlineCount: 25,
+  },
+  {
+    id: 'grupo-4',
+    name: 'After Office Centro',
+    category: 'After office',
+    description:
+      'Planea after office seguros cerca del centro de Lima y coordina puntos de encuentro.',
+    avatar: '🍻',
+    membersCount: 74,
+    onlineCount: 9,
+  },
+  {
+    id: 'grupo-5',
+    name: 'Rutas Seguras Lima',
+    category: 'Transporte',
+    description:
+      'Comparte rutas seguras, aplicaciones útiles y recomendaciones para volver a casa.',
+    avatar: '🛣️',
+    membersCount: 156,
+    onlineCount: 14,
+  },
+];
+
 export async function getCommunityGroups(): Promise<ApiCommunityGroup[]> {
-  return request<ApiCommunityGroup[]>('/community/groups');
+  return DEMO_GROUPS;
 }
 
 export async function createCommunityGroup(params: {
@@ -215,10 +346,17 @@ export async function createCommunityGroup(params: {
   description: string;
   avatar?: string | null;
 }): Promise<ApiCommunityGroup> {
-  return request<ApiCommunityGroup>('/community/groups', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  });
+  const created: ApiCommunityGroup = {
+    id: `grupo-${Date.now()}`,
+    name: params.name,
+    category: params.category,
+    description: params.description,
+    avatar: params.avatar ?? null,
+    membersCount: 1,
+    onlineCount: 1,
+  };
+  DEMO_GROUPS.push(created);
+  return created;
 }
 
 export type ApiEmergencyContact = {
@@ -233,8 +371,66 @@ export type ApiEmergencyContact = {
   favorite: boolean;
 };
 
+const DEMO_CONTACTS: ApiEmergencyContact[] = [
+  {
+    id: 'contacto-1',
+    name: 'Ana Fiesta',
+    phone: '+51 999111222',
+    avatar: '🎉',
+    status: 'ONLINE',
+    lastSeen: null,
+    lat: -12.1219,
+    lng: -77.0298,
+    favorite: true,
+  },
+  {
+    id: 'contacto-2',
+    name: 'Carlos Guardia',
+    phone: '+51 988222333',
+    avatar: '🛡️',
+    status: 'OFFLINE',
+    lastSeen: 'Visto por última vez hace 30 min cerca de Barranco',
+    lat: -12.142,
+    lng: -77.021,
+    favorite: false,
+  },
+  {
+    id: 'contacto-3',
+    name: 'Lucía Taxi Seguro',
+    phone: '+51 977333444',
+    avatar: '🚕',
+    status: 'ONLINE',
+    lastSeen: null,
+    lat: -12.127,
+    lng: -77.035,
+    favorite: true,
+  },
+  {
+    id: 'contacto-4',
+    name: 'Grupo Roomies',
+    phone: '+51 966444555',
+    avatar: '🏠',
+    status: 'OFFLINE',
+    lastSeen: 'Se conectó hace 1 h desde Lima Centro',
+    lat: -12.055,
+    lng: -77.04,
+    favorite: false,
+  },
+  {
+    id: 'contacto-5',
+    name: 'SafeZone Bot',
+    phone: '+51 955555555',
+    avatar: '🤖',
+    status: 'ONLINE',
+    lastSeen: null,
+    lat: -12.12,
+    lng: -77.028,
+    favorite: false,
+  },
+];
+
 export async function getMyEmergencyContacts(): Promise<ApiEmergencyContact[]> {
-  return request<ApiEmergencyContact[]>('/users/contacts');
+  return DEMO_CONTACTS;
 }
 
 export async function sendSosAlert(params: {
@@ -245,32 +441,27 @@ export async function sendSosAlert(params: {
   lng?: number;
   startedAt?: string;
 }): Promise<{ message: string }> {
-  const data = await request<{ message: string }>('/users/sos-alert', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  });
-  return data;
+  // Modo demo: solo devolvemos un mensaje de éxito local
+  return {
+    message:
+      'Alerta SOS registrada en modo demo. En la versión real, se enviaría a tus contactos y guardianes.',
+  };
 }
 
 export async function requestPasswordReset(
   email: string,
 ): Promise<{ message: string }> {
-  const data = await request<{ message: string }>('/users/forgot-password', {
-    method: 'POST',
-    body: JSON.stringify({ email }),
-  });
-  return data;
+  return {
+    message:
+      'Modo demo: se simula el envío de un correo de recuperación a tu bandeja de entrada.',
+  };
 }
 
 export async function verifyResetCode(params: {
   email: string;
   token: string;
 }): Promise<{ message: string }> {
-  const data = await request<{ message: string }>('/users/verify-reset-code', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  });
-  return data;
+  return { message: 'Código verificado correctamente (demo, sin backend).' };
 }
 
 export async function resetPasswordWithCode(params: {
@@ -278,29 +469,22 @@ export async function resetPasswordWithCode(params: {
   token: string;
   newPassword: string;
 }): Promise<{ message: string }> {
-  const data = await request<{ message: string }>('/users/reset-password', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  });
-  return data;
+  return {
+    message:
+      'Contraseña actualizada en modo demo. En producción se aplicaría en tu cuenta real.',
+  };
 }
 
 export async function loginUser(params: {
   email: string;
   password: string;
 }): Promise<{ user: ApiUser; token: string }> {
-  const data = await request<{ user: ApiUser; token: string }>(
-    '/users/login',
-    {
-      method: 'POST',
-      body: JSON.stringify(params),
-    },
-  );
-
+  // Modo demo: ignoramos credenciales y devolvemos siempre el usuario demo
+  const stored = await AsyncStorage.getItem('auth_user');
+  const user = stored ? (JSON.parse(stored) as ApiUser) : DEMO_USER;
   await AsyncStorage.multiSet([
-    ['auth_token', data.token],
-    ['auth_user', JSON.stringify(data.user)],
+    ['auth_token', DEMO_TOKEN],
+    ['auth_user', JSON.stringify(user)],
   ]);
-
-  return data;
+  return { user, token: DEMO_TOKEN };
 }

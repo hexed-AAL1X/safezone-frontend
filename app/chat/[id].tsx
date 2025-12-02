@@ -30,23 +30,25 @@ export default function ChatScreen() {
         if (stored) {
           setMsgs(JSON.parse(stored));
         } else {
-          // Mensajes iniciales si no hay historial - conversaciones sobre experiencias en discotecas
+          // Mensajes iniciales si no hay historial - experiencias saliendo y usando SafeZone
           const isGroupChat = id?.toString().startsWith('group-');
           if (isGroupChat) {
             setMsgs([
               { id: 'm1', text: 'Alguien fue a Club Eclipse el fin de semana?' },
-              { id: 'm2', text: 'Sí! La seguridad estuvo excelente, el staff muy atento 👍' },
-              { id: 'm3', text: 'Confirmo, me sentí muy segura. Los guardias revisan bien en la entrada' },
-              { id: 'm4', me: true, text: 'Qué bueno saberlo! Estaba pensando ir este sábado' },
-              { id: 'm5', text: 'Recomendado! Pero llega temprano porque se llena rápido' },
-              { id: 'm6', text: 'La Cueva también está buena, tienen protocolo anti-acoso muy estricto' },
-              { id: 'm7', text: 'Alguien conoce Neon Bar? Vi que tiene buenas reviews' },
-              { id: 'm8', text: 'Sí, es más tranquilo. Ideal si quieres algo más lounge' },
+              { id: 'm2', text: 'Sí! Fui con SafeZone activo, la app avisó a mis contactos cuando llegué 👍' },
+              { id: 'm3', text: 'Confirmo, me sentí muy segura. Los guardias revisan bien en la entrada.' },
+              { id: 'm4', me: true, text: 'Yo uso SafeZone para que mis amigos vean por dónde voy saliendo del club.' },
+              { id: 'm5', text: 'Recomendado! Pero llega temprano porque se llena rápido.' },
+              { id: 'm6', text: 'La Cueva también está buena, tienen protocolo anti-acoso muy estricto.' },
+              { id: 'm7', text: 'Una vez SafeZone me ayudó a avisar rápido cuando el taxi se desvió de la ruta.' },
+              { id: 'm8', text: 'Neon Bar es más tranquilo, ideal si quieres algo tipo lounge después de la fiesta.' },
             ]);
           } else {
             setMsgs([
-              { id: 'm1', text: 'Hola! ¿Todo bien?' },
-              { id: 'm2', me: true, text: 'Sí, todo perfecto!' },
+              { id: 'm1', text: 'Hola! ¿List@ para salir esta noche?' },
+              { id: 'm2', me: true, text: 'Sí! Esta vez voy a activar SafeZone desde que salga de casa.' },
+              { id: 'm3', text: 'Buenazo, así veo en el mapa por dónde vas y si llegas bien al antro.' },
+              { id: 'm4', me: true, text: 'La última vez me ayudó a avisar rápido cuando el taxi se desvió.' },
             ]);
           }
         }
